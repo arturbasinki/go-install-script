@@ -31,7 +31,7 @@ curl -sSL https://raw.githubusercontent.com/arturbasinki/go-install-script/refs/
 
    ```bash
    git clone https://github.com/arturbasinki/go-install-script.git
-   cd go-script
+   cd go-install-script
    ```
 
 2. Make the script executable:
