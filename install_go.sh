@@ -75,9 +75,9 @@ install_latest_go() {
   fi
   rm "$GO_TAR_FILE" # Clean up downloaded tar file after successful extraction
 
-  # Add Go to the PATH
+  # Add Go to the PATH and set GOPATH/GOBIN
   # This part needs to be handled carefully for root vs user
-  echo "Adding Go to the PATH..."
+  echo "Setting up Go environment..."
   PROFILE_FILE=""
   if [ "$(id -u)" -ne 0 ]; then
     # For regular user, update their own .profile or .bashrc
@@ -90,22 +90,58 @@ install_latest_go() {
       PROFILE_FILE="$HOME/.profile"
       touch "$PROFILE_FILE"
     fi
-    # Ensure the Go path is not already there to avoid duplicates
-    if ! grep -q "export PATH=\$PATH:/usr/local/go/bin" "$PROFILE_FILE"; then
-      echo "export PATH=\$PATH:/usr/local/go/bin" >> "$PROFILE_FILE"
-      echo "Go path added to $PROFILE_FILE. Please source it or log out and log back in."
+    
+    # Set GOPATH to standard location
+    GOPATH_LINE="export GOPATH=\$HOME/go"
+    if ! grep -q "$GOPATH_LINE" "$PROFILE_FILE"; then
+      echo "$GOPATH_LINE" >> "$PROFILE_FILE"
+      echo "GOPATH set to \$HOME/go in $PROFILE_FILE"
     else
-      echo "Go path already exists in $PROFILE_FILE."
+      echo "GOPATH already set in $PROFILE_FILE"
     fi
+    
+    # Set GOBIN to GOPATH/bin
+    GOBIN_LINE="export GOBIN=\$GOPATH/bin"
+    if ! grep -q "$GOBIN_LINE" "$PROFILE_FILE"; then
+      echo "$GOBIN_LINE" >> "$PROFILE_FILE"
+      echo "GOBIN set to \$GOPATH/bin in $PROFILE_FILE"
+    else
+      echo "GOBIN already set in $PROFILE_FILE"
+    fi
+    
+    # Add Go binary directory to PATH
+    GO_PATH_LINE="export PATH=\$PATH:/usr/local/go/bin"
+    if ! grep -q "$GO_PATH_LINE" "$PROFILE_FILE"; then
+      echo "$GO_PATH_LINE" >> "$PROFILE_FILE"
+      echo "Go binary path added to PATH in $PROFILE_FILE"
+    else
+      echo "Go binary path already exists in PATH in $PROFILE_FILE"
+    fi
+    
+    # Add GOBIN to PATH so installed binaries are recognized as commands
+    GOBIN_PATH_LINE="export PATH=\$PATH:\$GOBIN"
+    if ! grep -q "$GOBIN_PATH_LINE" "$PROFILE_FILE"; then
+      echo "$GOBIN_PATH_LINE" >> "$PROFILE_FILE"
+      echo "GOBIN added to PATH in $PROFILE_FILE. Please source it or log out and log back in."
+    else
+      echo "GOBIN already exists in PATH in $PROFILE_FILE."
+    fi
+    
     # For the current session (user)
-    export PATH=$PATH:/usr/local/go/bin
+    export GOPATH=$HOME/go
+    export GOBIN=$GOPATH/bin
+    export PATH=$PATH:/usr/local/go/bin:$GOBIN
   else
     # For root user, consider system-wide profile or /etc/profile.d/
     # For simplicity, we'll just set it for the current root session
     # and suggest manual addition for permanent system-wide effect if needed.
-    export PATH=$PATH:/usr/local/go/bin
-    echo "Go path set for the current root session."
-    echo "For permanent system-wide effect for all users, consider adding '/usr/local/go/bin' to /etc/profile or creating a script in /etc/profile.d/"
+    export GOPATH=$HOME/go
+    export GOBIN=$GOPATH/bin
+    export PATH=$PATH:/usr/local/go/bin:$GOBIN
+    echo "Go environment set for the current root session."
+    echo "GOPATH set to \$HOME/go"
+    echo "GOBIN set to \$GOPATH/bin"
+    echo "For permanent system-wide effect for all users, consider adding these environment variables to /etc/profile or creating a script in /etc/profile.d/"
   fi
 
 
