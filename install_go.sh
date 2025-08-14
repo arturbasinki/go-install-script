@@ -22,6 +22,15 @@ detect_architecture() {
 
 # Function to install or update Go
 install_latest_go() {
+  # Determine if sudo is needed
+  SUDO_CMD=""
+  if [ "$(id -u)" -ne 0 ]; then
+    SUDO_CMD="sudo"
+    echo "Running with user privileges. Using sudo for root commands."
+  else
+    echo "Running as root. sudo will not be used."
+  fi
+
   # URL of the official Go downloads page
   GO_DOWNLOAD_URL="https://go.dev/dl/"
 
@@ -30,6 +39,7 @@ install_latest_go() {
   echo "Detected architecture: $ARCH"
 
   # Fetch the latest Go version
+  echo "Fetching the latest Go version..."
   LATEST_GO_VERSION=$(curl -s $GO_DOWNLOAD_URL | grep -oP 'go[0-9]+\.[0-9]+(\.[0-9]+)?' | head -n 1)
 
   # Check if the latest version was fetched successfully
@@ -46,40 +56,88 @@ install_latest_go() {
 
   # Remove any previous Go installation
   echo "Removing previous Go installation (if any)..."
-  sudo rm -rf /usr/local/go
+  $SUDO_CMD rm -rf /usr/local/go
 
   # Download and extract the latest Go version
-  echo "Downloading and installing Go version $LATEST_GO_VERSION for $ARCH..."
-  curl -LO "$GO_DOWNLOAD_LINK"
-  sudo tar -C /usr/local -xzf "$GO_TAR_FILE"
-  rm "$GO_TAR_FILE"
+  echo "Downloading Go version $LATEST_GO_VERSION for $ARCH..."
+  curl -LO $GO_DOWNLOAD_LINK
+  if [ $? -ne 0 ]; then
+    echo "Failed to download Go. Please check the URL or your internet connection."
+    # Clean up downloaded file if it exists and is incomplete
+    [ -f "$GO_TAR_FILE" ] && rm "$GO_TAR_FILE"
+    return 1
+  fi
+
+  echo "Installing Go..."
+  $SUDO_CMD tar -C /usr/local -xzf $GO_TAR_FILE
+  if [ $? -ne 0 ]; then
+    echo "Failed to extract Go. Please check the downloaded file or permissions."
+    rm $GO_TAR_FILE # Clean up downloaded tar file
+    return 1
+  fi
+  rm $GO_TAR_FILE # Clean up downloaded tar file after successful extraction
 
   # Add Go to the PATH
+  # This part needs to be handled carefully for root vs user
   echo "Adding Go to the PATH..."
-  export PATH=$PATH:/usr/local/go/bin
-  
-  # Check if .bashrc exists and use it, otherwise use .profile
-  if [ -f ~/.bashrc ]; then
-    echo "export PATH=\$PATH:/usr/local/go/bin" >> ~/.bashrc
-    echo "Go PATH has been added to ~/.bashrc"
+  PROFILE_FILE=""
+  if [ "$(id -u)" -ne 0 ]; then
+    # For regular user, update their own .profile or .bashrc
+    if [ -f "$HOME/.bashrc" ]; then
+      PROFILE_FILE="$HOME/.bashrc"
+    elif [ -f "$HOME/.profile" ]; then
+      PROFILE_FILE="$HOME/.profile"
+    else
+      # Fallback if neither exists, create .profile
+      PROFILE_FILE="$HOME/.profile"
+      touch "$PROFILE_FILE"
+    fi
+    # Ensure the Go path is not already there to avoid duplicates
+    if ! grep -q 'export PATH=$PATH:/usr/local/go/bin' "$PROFILE_FILE"; then
+      echo 'export PATH=$PATH:/usr/local/go/bin' >> "$PROFILE_FILE"
+      echo "Go path added to $PROFILE_FILE. Please source it or log out and log back in."
+    else
+      echo "Go path already exists in $PROFILE_FILE."
+    fi
+    # For the current session (user)
+    export PATH=$PATH:/usr/local/go/bin
   else
-    echo "export PATH=\$PATH:/usr/local/go/bin" >> ~/.profile
-    echo "Go PATH has been added to ~/.profile"
+    # For root user, consider system-wide profile or /etc/profile.d/
+    # For simplicity, we'll just set it for the current root session
+    # and suggest manual addition for permanent system-wide effect if needed.
+    export PATH=$PATH:/usr/local/go/bin
+    echo "Go path set for the current root session."
+    echo "For permanent system-wide effect for all users, consider adding '/usr/local/go/bin' to /etc/profile or creating a script in /etc/profile.d/"
   fi
-  
-  # Source the appropriate file to update current session
-  if [ -f ~/.bashrc ]; then
-    shellcheck source ~/.bashrc
-  else
-    shellcheck source ~/.profile
-  fi
+
 
   # Verify the installation
   echo "Verifying the installation..."
-  if go version; then
+  # Check if go binary exists and is executable
+  if [ ! -x "/usr/local/go/bin/go" ]; then
+      echo "Go binary not found or not executable at /usr/local/go/bin/go."
+      # Attempt to source profile if it was just modified for the user
+      if [ -n "$PROFILE_FILE" ] && [ -f "$PROFILE_FILE" ]; then
+          echo "Attempting to source $PROFILE_FILE..."
+          source "$PROFILE_FILE"
+      fi
+  fi
+
+  # Re-check PATH or call go with full path for verification
+  if command -v go &>/dev/null; then
+    go version
+  elif [ -x "/usr/local/go/bin/go" ]; then
+    /usr/local/go/bin/go version
+  else
+    echo "Could not find go command. Please ensure /usr/local/go/bin is in your PATH."
+    return 1
+  fi
+
+
+  if [ $? -eq 0 ]; then
     echo "Go $LATEST_GO_VERSION has been successfully installed/updated!"
   else
-    echo "Installation failed. Please check the logs and try again."
+    echo "Installation failed or verification issue. Please check the logs and try again."
     return 1
   fi
 }
