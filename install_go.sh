@@ -60,8 +60,7 @@ install_latest_go() {
 
   # Download and extract the latest Go version
   echo "Downloading Go version $LATEST_GO_VERSION for $ARCH..."
-  curl -LO $GO_DOWNLOAD_LINK
-  if [ $? -ne 0 ]; then
+  if ! curl -LO "$GO_DOWNLOAD_LINK"; then
     echo "Failed to download Go. Please check the URL or your internet connection."
     # Clean up downloaded file if it exists and is incomplete
     [ -f "$GO_TAR_FILE" ] && rm "$GO_TAR_FILE"
@@ -69,13 +68,12 @@ install_latest_go() {
   fi
 
   echo "Installing Go..."
-  $SUDO_CMD tar -C /usr/local -xzf $GO_TAR_FILE
-  if [ $? -ne 0 ]; then
+  if ! $SUDO_CMD tar -C /usr/local -xzf "$GO_TAR_FILE"; then
     echo "Failed to extract Go. Please check the downloaded file or permissions."
-    rm $GO_TAR_FILE # Clean up downloaded tar file
+    rm "$GO_TAR_FILE" # Clean up downloaded tar file
     return 1
   fi
-  rm $GO_TAR_FILE # Clean up downloaded tar file after successful extraction
+  rm "$GO_TAR_FILE" # Clean up downloaded tar file after successful extraction
 
   # Add Go to the PATH
   # This part needs to be handled carefully for root vs user
@@ -93,8 +91,8 @@ install_latest_go() {
       touch "$PROFILE_FILE"
     fi
     # Ensure the Go path is not already there to avoid duplicates
-    if ! grep -q 'export PATH=$PATH:/usr/local/go/bin' "$PROFILE_FILE"; then
-      echo 'export PATH=$PATH:/usr/local/go/bin' >> "$PROFILE_FILE"
+    if ! grep -q "export PATH=\$PATH:/usr/local/go/bin" "$PROFILE_FILE"; then
+      echo "export PATH=\$PATH:/usr/local/go/bin" >> "$PROFILE_FILE"
       echo "Go path added to $PROFILE_FILE. Please source it or log out and log back in."
     else
       echo "Go path already exists in $PROFILE_FILE."
@@ -119,7 +117,7 @@ install_latest_go() {
       # Attempt to source profile if it was just modified for the user
       if [ -n "$PROFILE_FILE" ] && [ -f "$PROFILE_FILE" ]; then
           echo "Attempting to source $PROFILE_FILE..."
-          source "$PROFILE_FILE"
+          shellcheck source "$PROFILE_FILE"
       fi
   fi
 
@@ -133,13 +131,8 @@ install_latest_go() {
     return 1
   fi
 
-
-  if [ $? -eq 0 ]; then
-    echo "Go $LATEST_GO_VERSION has been successfully installed/updated!"
-  else
-    echo "Installation failed or verification issue. Please check the logs and try again."
-    return 1
-  fi
+  # The go version command was successful if we reached this point
+  echo "Go $LATEST_GO_VERSION has been successfully installed/updated!"
 }
 
 # Call the function to execute the installation
