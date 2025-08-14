@@ -50,21 +50,33 @@ install_latest_go() {
 
   # Download and extract the latest Go version
   echo "Downloading and installing Go version $LATEST_GO_VERSION for $ARCH..."
-  curl -LO $GO_DOWNLOAD_LINK
-  sudo tar -C /usr/local -xzf $GO_TAR_FILE
-  rm $GO_TAR_FILE
+  curl -LO "$GO_DOWNLOAD_LINK"
+  sudo tar -C /usr/local -xzf "$GO_TAR_FILE"
+  rm "$GO_TAR_FILE"
 
   # Add Go to the PATH
   echo "Adding Go to the PATH..."
   export PATH=$PATH:/usr/local/go/bin
-  echo 'export PATH=$PATH:/usr/local/go/bin' >> $HOME/.profile
-  source $HOME/.profile
+  
+  # Check if .bashrc exists and use it, otherwise use .profile
+  if [ -f ~/.bashrc ]; then
+    echo "export PATH=\$PATH:/usr/local/go/bin" >> ~/.bashrc
+    echo "Go PATH has been added to ~/.bashrc"
+  else
+    echo "export PATH=\$PATH:/usr/local/go/bin" >> ~/.profile
+    echo "Go PATH has been added to ~/.profile"
+  fi
+  
+  # Source the appropriate file to update current session
+  if [ -f ~/.bashrc ]; then
+    shellcheck source ~/.bashrc
+  else
+    shellcheck source ~/.profile
+  fi
 
   # Verify the installation
   echo "Verifying the installation..."
-  go version
-
-  if [ $? -eq 0 ]; then
+  if go version; then
     echo "Go $LATEST_GO_VERSION has been successfully installed/updated!"
   else
     echo "Installation failed. Please check the logs and try again."
