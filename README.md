@@ -22,7 +22,7 @@ This repository contains a Bash script to automatically detect your system's arc
 You can fetch and execute the script directly from GitHub using the following command:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/arturbasinki/go-install-script/refs/heads/master/go_version.sh | bash
+curl -sSL https://raw.githubusercontent.com/arturbasinki/go-install-script/refs/heads/master/install_go.sh | bash
 ```
 
 ### Option 2: Clone the Repository and Run the Script Locally
