@@ -219,23 +219,23 @@ download_go_version() {
   local download_url="https://go.dev/dl/${tar_file}"
   local tmp_path="/tmp/$tar_file"
 
-  echo "Downloading Go $version for $arch..."
+  echo "Downloading Go $version for $arch..." >&2
 
   # Download with timeout and retry
   if ! curl -fsSL --max-time 300 --retry 3 "$download_url" -o "$tmp_path"; then
-    echo "❌ Failed to download Go $version"
-    echo "   Check your internet connection or verify version exists"
+    echo "❌ Failed to download Go $version" >&2
+    echo "   Check your internet connection or verify version exists" >&2
     return 1
   fi
 
   # Verify tarball integrity
   if ! tar -tzf "$tmp_path" &>/dev/null; then
-    echo "❌ Downloaded file is corrupted"
+    echo "❌ Downloaded file is corrupted" >&2
     rm -f "$tmp_path"
     return 1
   fi
 
-  echo "✓ Downloaded to $tmp_path"
+  echo "✓ Downloaded to $tmp_path" >&2
   echo "$tmp_path"
 }
 
