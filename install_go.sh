@@ -389,6 +389,89 @@ configure_environment() {
   fi
 }
 
+# Remove old Go versions interactively
+cleanup_versions() {
+  local sudo_cmd=""
+  [ "$(id -u)" -ne 0 ] && sudo_cmd="sudo"
+
+  local versions=($(list_installed_versions))
+  local active_version=$(get_active_version | IFS='|' read -r v _ _; echo "$v")
+
+  if [ ${#versions[@]} -eq 0 ]; then
+    echo "No Go versions installed to clean up."
+    return 0
+  fi
+
+  echo "Installed versions:"
+  for v in "${versions[@]}"; do
+    if [ "$v" == "$active_version" ]; then
+      echo "  ✓ $v (active)"
+    else
+      echo "    $v"
+    fi
+  done
+  echo ""
+
+  # Filter out active version
+  local removable=()
+  for v in "${versions[@]}"; do
+    [ "$v" != "$active_version" ] && removable+=("$v")
+  done
+
+  if [ ${#removable[@]} -eq 0 ]; then
+    echo "No old versions to remove (only active version installed)."
+    return 0
+  fi
+
+  if [ "$SILENT_MODE" == "true" ]; then
+    # Silent mode: remove all old versions
+    echo "Removing all old versions..."
+    for v in "${removable[@]}"; do
+      echo "  Removing $v..."
+      $sudo_cmd rm -rf "/usr/local/go-$v"
+    done
+    echo "✓ Cleanup complete"
+    return 0
+  fi
+
+  # Interactive mode
+  echo "Remove old versions? (all/specific/none/exit)"
+  read -p "> " choice
+
+  case "$choice" in
+    all)
+      echo "Removing all old versions..."
+      for v in "${removable[@]}"; do
+        echo "  Removing $v..."
+        $sudo_cmd rm -rf "/usr/local/go-$v"
+      done
+      echo "✓ Removed ${#removable[@]} old version(s)"
+      ;;
+    specific)
+      echo "Select versions to remove (space-separated numbers):"
+      for i in "${!removable[@]}"; do
+        echo "  [$i] ${removable[$i]}"
+      done
+      read -p "Numbers: " input
+
+      for num in $input; do
+        if [ -n "${removable[$num]}" ]; then
+          v="${removable[$num]}"
+          echo "  Removing $v..."
+          $sudo_cmd rm -rf "/usr/local/go-$v"
+          echo "  ✓ Removed $v"
+        fi
+      done
+      ;;
+    none)
+      echo "Keeping all versions"
+      ;;
+    exit|*)
+      echo "Cleanup cancelled"
+      ;;
+  esac
+}
+
 # Install or update Go to the latest version
 # Detects system architecture, downloads the latest Go version,
 # installs it to /usr/local/go, and configures environment variables.
