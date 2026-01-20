@@ -476,9 +476,18 @@ cleanup_versions() {
 
 # Smart interactive prompts based on current state
 prompt_smart() {
+  # Set default for silent mode
+  SILENT_MODE="${SILENT_MODE:-false}"
+
   local current_info=$(get_active_version)
-  local current_version=$(echo "$current_info" | IFS='|' read -r v _ _; echo "$v")
+  IFS='|' read -r v _ _ <<< "$current_info"
+  local current_version="$v"
   local latest_version=$(fetch_latest_version)
+
+  if [ -z "$latest_version" ]; then
+    echo "Failed to fetch latest Go version" >&2
+    return 1
+  fi
 
   echo ""
   echo "=== Go Version Manager ==="
@@ -511,7 +520,8 @@ prompt_smart() {
   # Scenario 2: Current version outdated
   if [ "$current_version" != "$latest_version" ]; then
     echo "Current installation: $current_version"
-    local current_location=$(echo "$current_info" | IFS='|' read -r _ l _; echo "$l")
+    IFS='|' read -r _ l _ <<< "$current_info"
+    local current_location="$l"
     echo "Location: $current_location"
     echo "Latest available: $latest_version"
 
@@ -538,6 +548,7 @@ prompt_smart() {
         install_go_version "$latest_version"
         switch_go_version "$latest_version"
         configure_environment
+        return $?
         ;;
       s)
         show_version_menu
@@ -574,7 +585,9 @@ prompt_smart() {
 # Show menu of installed versions for switching
 show_version_menu() {
   local versions=($(list_installed_versions))
-  local current_version=$(get_active_version | IFS='|' read -r v _ _; echo "$v")
+  local current_info=$(get_active_version)
+  IFS='|' read -r v _ _ <<< "$current_info"
+  local current_version="$v"
 
   if [ ${#versions[@]} -eq 0 ]; then
     echo "No versions installed."
