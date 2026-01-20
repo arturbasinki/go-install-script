@@ -710,9 +710,9 @@ parse_arguments() {
         SILENT_MODE=true
         shift
         ;;
-      --version)
+      -v|--version)
         if [ -z "$2" ] || [[ "$2" == -* ]]; then
-          echo "Error: --version requires a version number"
+          echo "Error: -v, --version requires a version number"
           echo ""
           show_help
           exit 1
@@ -727,7 +727,7 @@ parse_arguments() {
         CLEANUP_ONLY=true
         shift
         ;;
-      --list)
+      -l|--list)
         LIST_ONLY=true
         shift
         ;;
@@ -754,17 +754,17 @@ USAGE:
 
 OPTIONS:
     -y, --yes              Silent mode - accept all defaults (no prompts)
-    --version VERSION      Install or switch to specific version (e.g., 1.20.5)
+    -v, --version VERSION  Install or switch to specific version (e.g., 1.20.5)
     --cleanup              Run cleanup mode without installing
-    --list                 List installed and available versions
+    -l, --list             List installed and available versions (marks active)
     -h, --help             Show this help message
 
 EXAMPLES:
     install_go.sh                  Interactive mode with smart prompts
     install_go.sh -y               Install/upgrade to latest silently
-    install_go.sh --version 1.20.5 Install specific version
-    install_go.sh -y --cleanup     Remove old versions silently
-    install_go.sh --list           Show all installed versions
+    install_go.sh -v 1.20.5        Install specific version
+    install_go.sh -l               Show all installed versions
+    install_go.sh --cleanup        Remove old versions interactively
 
 EOF
 }
@@ -795,7 +795,19 @@ main() {
   # Handle list mode
   if [ "$LIST_ONLY" == "true" ]; then
     echo "Installed versions:"
-    list_installed_versions
+    local active_info=$(get_active_version)
+    local active_version=$(echo "$active_info" | cut -d'|' -f1)
+    local all_versions=$(list_installed_versions)
+
+    # Show versions with active marker
+    while IFS= read -r version; do
+      if [ "$version" == "$active_version" ]; then
+        echo "  * $version (active)"
+      else
+        echo "    $version"
+      fi
+    done <<< "$all_versions"
+
     local latest=$(fetch_latest_version)
     echo "Latest available: $latest"
     exit 0
