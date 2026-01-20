@@ -243,6 +243,65 @@ switch_go_version() {
   /usr/local/go/bin/go version
 }
 
+# Migrate legacy /usr/local/go directory to versioned format
+migrate_legacy_install() {
+  local sudo_cmd=""
+  [ "$(id -u)" -ne 0 ] && sudo_cmd="sudo"
+
+  # Check if legacy install exists
+  if [ -d "/usr/local/go" ] && [ ! -L "/usr/local/go" ]; then
+    if [ -x "/usr/local/go/bin/go" ]; then
+      local version=$(/usr/local/go/bin/go version 2>/dev/null | grep -oP 'go[0-9]+\.[0-9]+(\.[0-9]+)?' | sed 's/^go//')
+
+      if [ -z "$version" ]; then
+        echo "⚠️  Legacy installation detected but version could not be determined"
+        return 1
+      fi
+
+      echo "⚠️  Legacy installation detected: go$version"
+      echo ""
+      echo "   This script now manages multiple Go versions side-by-side."
+      echo "   Your existing installation will be migrated to the new format."
+      echo ""
+
+      # Check if we should prompt (non-silent mode)
+      if [ "$SILENT_MODE" != "true" ]; then
+        read -p "   Continue? (y/n) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+          echo "Migration cancelled. Exiting."
+          exit 0
+        fi
+      fi
+
+      # Create backup
+      echo "Creating backup..."
+      $sudo_cmd cp -r /usr/local/go /usr/local/go.backup
+
+      # Rename to versioned directory
+      echo "Migrating to /usr/local/go-$version..."
+      $sudo_cmd mv /usr/local/go "/usr/local/go-$version"
+
+      # Create symlink
+      $sudo_cmd ln -s "/usr/local/go-$version" /usr/local/go
+
+      # Verify migration
+      if /usr/local/go/bin/go version &>/dev/null; then
+        echo "✓ Migrated successfully"
+        $sudo_cmd rm -rf /usr/local/go.backup
+        return 0
+      else
+        echo "❌ Migration failed, restoring backup"
+        $sudo_cmd rm -rf /usr/local/go "/usr/local/go-$version"
+        $sudo_cmd mv /usr/local/go.backup /usr/local/go
+        return 1
+      fi
+    fi
+  fi
+
+  return 0
+}
+
 # Install or update Go to the latest version
 # Detects system architecture, downloads the latest Go version,
 # installs it to /usr/local/go, and configures environment variables.
