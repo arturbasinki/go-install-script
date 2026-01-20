@@ -69,6 +69,74 @@ fetch_latest_version() {
   echo "$latest_version"
 }
 
+# Normalize version string (remove 'go' prefix if present)
+# Returns: Version string without 'go' prefix (e.g., "1.21.0" from "go1.21.0")
+normalize_version() {
+  local version="$1"
+  echo "$version" | sed 's/^go//'
+}
+
+# Get currently active Go version and location
+# Checks PATH, symlink location, and legacy directory installations.
+# Returns: Pipe-delimited string "version|location|goroot" or "||" if not found
+get_active_version() {
+  local version=""
+  local location=""
+  local goroot=""
+
+  # Method 1: Check if 'go' command exists in PATH
+  if command -v go &>/dev/null; then
+    version=$(go version | grep -oP 'go[0-9]+\.[0-9]+(\.[0-9]+)?')
+    location=$(which go)
+    goroot=$(go env GOROOT 2>/dev/null || echo "")
+    echo "$version|$location|$goroot"
+    return 0
+  fi
+
+  # Method 2: Check standard symlink location
+  if [ -L "/usr/local/go" ]; then
+    local target=$(readlink -f /usr/local/go)
+    version=$(echo "$target" | grep -oP 'go-[0-9]+\.[0-9]+(\.[0-9]+)?' | sed 's/^go-//')
+    location="/usr/local/go/bin/go"
+    goroot="$target"
+    echo "$version|$location|$goroot"
+    return 0
+  fi
+
+  # Method 3: Check legacy directory install
+  if [ -d "/usr/local/go/bin" ]; then
+    version=$(/usr/local/go/bin/go version 2>/dev/null | grep -oP 'go[0-9]+\.[0-9]+(\.[0-9]+)?')
+    if [ -n "$version" ]; then
+      location="/usr/local/go/bin/go"
+      goroot="/usr/local/go"
+      echo "$version|$location|$goroot"
+      return 0
+    fi
+  fi
+
+  # No Go found
+  echo "||"
+  return 1
+}
+
+# List all installed Go versions
+# Scans /usr/local/go-* directories for versioned installations.
+# Returns: Sorted list of versions (newest first), one per line
+list_installed_versions() {
+  local versions=()
+
+  # Find all /usr/local/go-* directories
+  for dir in /usr/local/go-[0-9]*; do
+    if [ -d "$dir" ]; then
+      local version=$(basename "$dir" | sed 's/^go-//')
+      versions+=("$version")
+    fi
+  done
+
+  # Sort versions (newest first)
+  printf '%s\n' "${versions[@]}" | sort -V -r
+}
+
 # Install or update Go to the latest version
 # Detects system architecture, downloads the latest Go version,
 # installs it to /usr/local/go, and configures environment variables.
