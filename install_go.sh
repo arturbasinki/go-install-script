@@ -320,6 +320,75 @@ migrate_legacy_install() {
   return 0
 }
 
+# Configure Go environment variables in shell profile
+configure_environment() {
+  local profile_file=$(detect_profile_file)
+  local sudo_cmd=""
+  [ "$(id -u)" -ne 0 ] && sudo_cmd="sudo"
+
+  echo "Setting up Go environment..."
+
+  if [ "$(id -u)" -ne 0 ]; then
+    # For regular user, update their profile
+    if [ ! -f "$profile_file" ]; then
+      # Create profile file if it doesn't exist
+      local profile_dir=$(dirname "$profile_file")
+      [ ! -d "$profile_dir" ] && mkdir -p "$profile_dir"
+      touch "$profile_file"
+    fi
+
+    # Set GOPATH
+    local gopath_line='export GOPATH=$HOME/go'
+    if ! grep -qF "$gopath_line" "$profile_file" 2>/dev/null; then
+      echo "$gopath_line" >> "$profile_file"
+      echo "✓ GOPATH set to \$HOME/go in $profile_file"
+    else
+      echo "✓ GOPATH already set in $profile_file"
+    fi
+
+    # Set GOBIN
+    local gobin_line='export GOBIN=$GOPATH/bin'
+    if ! grep -qF "$gobin_line" "$profile_file" 2>/dev/null; then
+      echo "$gobin_line" >> "$profile_file"
+      echo "✓ GOBIN set to \$GOPATH/bin in $profile_file"
+    else
+      echo "✓ GOBIN already set in $profile_file"
+    fi
+
+    # Add Go binary directory to PATH
+    local go_path_line='export PATH=$PATH:/usr/local/go/bin'
+    if ! grep -qF "$go_path_line" "$profile_file" 2>/dev/null; then
+      echo "$go_path_line" >> "$profile_file"
+      echo "✓ Go binary path added to PATH in $profile_file"
+    else
+      echo "✓ Go binary path already in PATH in $profile_file"
+    fi
+
+    # Add GOBIN to PATH
+    local gobin_path_line='export PATH=$PATH:$GOBIN'
+    if ! grep -qF "$gobin_path_line" "$profile_file" 2>/dev/null; then
+      echo "$gobin_path_line" >> "$profile_file"
+      echo "✓ GOBIN added to PATH in $profile_file"
+    else
+      echo "✓ GOBIN already in PATH in $profile_file"
+    fi
+
+    # Export for current session
+    export GOPATH=$HOME/go
+    export GOBIN=$GOPATH/bin
+    export PATH=$PATH:/usr/local/go/bin:$GOBIN
+  else
+    # For root user
+    export GOPATH=$HOME/go
+    export GOBIN=$GOPATH/bin
+    export PATH=$PATH:/usr/local/go/bin:$GOBIN
+    echo "✓ Go environment set for current session"
+    echo "  GOPATH: \$HOME/go"
+    echo "  GOBIN: \$GOPATH/bin"
+    echo "  For permanent system-wide effect, add to /etc/profile.d/go.sh"
+  fi
+}
+
 # Install or update Go to the latest version
 # Detects system architecture, downloads the latest Go version,
 # installs it to /usr/local/go, and configures environment variables.
