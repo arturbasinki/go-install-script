@@ -140,6 +140,109 @@ list_installed_versions() {
   printf '%s\n' "${versions[@]}" | sort -V -r
 }
 
+# Download Go tarball with validation
+download_go_version() {
+  local version="$1"
+  version=$(normalize_version "$version")
+  local arch=$(detect_architecture)
+  local tar_file="go${version}.linux-${arch}.tar.gz"
+  local download_url="https://go.dev/dl/${tar_file}"
+  local tmp_path="/tmp/$tar_file"
+
+  echo "Downloading Go $version for $arch..."
+
+  # Download with timeout and retry
+  if ! curl -fsSL --max-time 300 --retry 3 "$download_url" -o "$tmp_path"; then
+    echo "❌ Failed to download Go $version"
+    echo "   Check your internet connection or verify version exists"
+    return 1
+  fi
+
+  # Verify tarball integrity
+  if ! tar -tzf "$tmp_path" &>/dev/null; then
+    echo "❌ Downloaded file is corrupted"
+    rm -f "$tmp_path"
+    return 1
+  fi
+
+  echo "✓ Downloaded to $tmp_path"
+  echo "$tmp_path"
+}
+
+# Install Go version to versioned directory
+install_go_version() {
+  local version="$1"
+  version=$(normalize_version "$version")
+  local arch=$(detect_architecture)
+  local sudo_cmd=""
+
+  [ "$(id -u)" -ne 0 ] && sudo_cmd="sudo"
+
+  # Download
+  local tar_path=$(download_go_version "$version") || return 1
+
+  # Check disk space
+  local required_space=$(du -k "$tar_path" | cut -f1)
+  local available_space=$(df -k /usr/local | tail -1 | awk '{print $4}')
+
+  if [ "$available_space" -lt "$((required_space * 2))" ]; then
+    echo "❌ Insufficient disk space in /usr/local"
+    rm -f "$tar_path"
+    return 1
+  fi
+
+  # Extract to /usr/local/go (temporary)
+  echo "Extracting Go $version..."
+  if ! $sudo_cmd tar -C /usr/local -xzf "$tar_path"; then
+    echo "❌ Failed to extract Go"
+    rm -f "$tar_path"
+    return 1
+  fi
+
+  # Rename to versioned directory
+  local versioned_dir="/usr/local/go-$version"
+  echo "Installing to $versioned_dir..."
+
+  # Remove existing versioned directory if present
+  [ -d "$versioned_dir" ] && $sudo_cmd rm -rf "$versioned_dir"
+
+  $sudo_cmd mv /usr/local/go "$versioned_dir"
+  rm -f "$tar_path"
+
+  echo "✓ Installed Go $version to $versioned_dir"
+}
+
+# Switch active Go version by updating symlink
+switch_go_version() {
+  local version="$1"
+  version=$(normalize_version "$version")
+  local versioned_dir="/usr/local/go-$version"
+  local sudo_cmd=""
+
+  [ "$(id -u)" -ne 0 ] && sudo_cmd="sudo"
+
+  # Verify version exists
+  if [ ! -d "$versioned_dir" ]; then
+    echo "❌ Go $version is not installed"
+    echo "   Available versions:"
+    list_installed_versions
+    return 1
+  fi
+
+  # Verify Go binary exists
+  if [ ! -x "$versioned_dir/bin/go" ]; then
+    echo "❌ Go binary not found in $versioned_dir"
+    return 1
+  fi
+
+  # Update symlink
+  echo "Switching to Go $version..."
+  $sudo_cmd ln -sfn "$versioned_dir" /usr/local/go
+
+  echo "✓ Switched to Go $version"
+  /usr/local/go/bin/go version
+}
+
 # Install or update Go to the latest version
 # Detects system architecture, downloads the latest Go version,
 # installs it to /usr/local/go, and configures environment variables.
