@@ -1,5 +1,26 @@
 #!/bin/bash
 
+# Go Version Manager
+# Automatically detects system architecture, downloads Go versions,
+# and manages multiple installations side-by-side.
+#
+# Usage: install_go.sh [OPTIONS]
+#   -y, --yes         Silent mode
+#   --version VER     Install specific version
+#   --cleanup         Remove old versions
+#   --list            List versions
+#   -h, --help        Show help
+#
+# Author: arturbasinki
+# Repository: https://github.com/arturbasinki/go-install-script
+#
+# Environment Variables:
+#   SILENT_MODE       Set to "true" for non-interactive operation
+#
+# Exit Codes:
+#   0 - Success
+#   1 - Error (invalid input, installation failure, permission denied)
+
 # Global variables for error handling
 INSTALLING_VERSION=""
 PREV_SYMLINK_TARGET=""
@@ -821,88 +842,6 @@ main() {
 
   # Exit with success
   exit 0
-}
-
-# Install or update Go to the latest version
-# Detects system architecture, downloads the latest Go version,
-# installs it to /usr/local/go, and configures environment variables.
-# NOTE: This function is kept for backward compatibility but is deprecated.
-#       Use main() with appropriate arguments instead.
-install_latest_go() {
-  # Determine if sudo is needed
-  SUDO_CMD=""
-  if [ "$(id -u)" -ne 0 ]; then
-    SUDO_CMD="sudo"
-    echo "Running with user privileges. Using sudo for root commands."
-  else
-    echo "Running as root. sudo will not be used."
-  fi
-
-  # URL of the official Go downloads page
-  GO_DOWNLOAD_URL="https://go.dev/dl/"
-
-  # Detect the system architecture
-  ARCH=$(detect_architecture)
-  echo "Detected architecture: $ARCH"
-
-  # Fetch the latest Go version
-  echo "Fetching the latest Go version..."
-  LATEST_GO_VERSION=$(fetch_latest_version)
-  if [ -z "$LATEST_GO_VERSION" ]; then
-    return 1
-  fi
-
-  echo "The latest Go version is: $LATEST_GO_VERSION"
-
-  # Define the download URL for the latest Go version based on architecture
-  GO_TAR_FILE="${LATEST_GO_VERSION}.linux-${ARCH}.tar.gz"
-  GO_DOWNLOAD_LINK="https://go.dev/dl/${GO_TAR_FILE}"
-
-  # Remove any previous Go installation
-  echo "Removing previous Go installation (if any)..."
-  $SUDO_CMD rm -rf /usr/local/go
-
-  # Download and extract the latest Go version
-  echo "Downloading Go version $LATEST_GO_VERSION for $ARCH..."
-  if ! curl -LO "$GO_DOWNLOAD_LINK"; then
-    echo "Failed to download Go. Please check the URL or your internet connection."
-    # Clean up downloaded file if it exists and is incomplete
-    [ -f "$GO_TAR_FILE" ] && rm "$GO_TAR_FILE"
-    return 1
-  fi
-
-  echo "Installing Go..."
-  if ! $SUDO_CMD tar -C /usr/local -xzf "$GO_TAR_FILE"; then
-    echo "Failed to extract Go. Please check the downloaded file or permissions."
-    rm "$GO_TAR_FILE" # Clean up downloaded tar file
-    return 1
-  fi
-  rm "$GO_TAR_FILE" # Clean up downloaded tar file after successful extraction
-
-  # Configure Go environment
-  configure_environment
-
-
-  # Verify the installation
-  echo "Verifying the installation..."
-  # Check if go binary exists and is executable
-  if [ ! -x "/usr/local/go/bin/go" ]; then
-      echo "Go binary not found or not executable at /usr/local/go/bin/go."
-      return 1
-  fi
-
-  # Re-check PATH or call go with full path for verification
-  if command -v go &>/dev/null; then
-    go version
-  elif [ -x "/usr/local/go/bin/go" ]; then
-    /usr/local/go/bin/go version
-  else
-    echo "Could not find go command. Please ensure /usr/local/go/bin is in your PATH."
-    return 1
-  fi
-
-  # The go version command was successful if we reached this point
-  echo "Go $LATEST_GO_VERSION has been successfully installed/updated!"
 }
 
 # Only run installation if script is executed directly (not sourced)
