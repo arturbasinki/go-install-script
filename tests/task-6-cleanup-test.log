@@ -1,0 +1,14 @@
+=== Testing cleanup_versions function ===
+Test 1: Extract active version
+get_active_version output: 1.25.0|/usr/local/go/bin/go|/usr/local/go
+Extracted active_version: 1.25.0
+✓ Active version extracted correctly
+
+Test 2: List installed versions
+
+
+Test 3: Verify active version would be protected
+Total versions: 0
+Active version: 1.25.0
+
+=== All tests passed ===

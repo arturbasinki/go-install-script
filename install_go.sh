@@ -395,7 +395,9 @@ cleanup_versions() {
   [ "$(id -u)" -ne 0 ] && sudo_cmd="sudo"
 
   local versions=($(list_installed_versions))
-  local active_version=$(get_active_version | IFS='|' read -r v _ _; echo "$v")
+  # Extract active version using temp variable
+  local active_info=$(get_active_version)
+  local active_version=$(echo "$active_info" | cut -d'|' -f1)
 
   if [ ${#versions[@]} -eq 0 ]; then
     echo "No Go versions installed to clean up."
