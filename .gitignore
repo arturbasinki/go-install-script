@@ -1,2 +1,13 @@
 # Git worktrees
 .worktrees/
+
+# Backup files
+*.backup
+*.bak
+
+# Test logs
+tests/*.log
+
+# Temporary files
+*.tmp
+*.temp
