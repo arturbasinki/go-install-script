@@ -1,5 +1,35 @@
 #!/bin/bash
 
+# Global variables for error handling
+INSTALLING_VERSION=""
+PREV_SYMLINK_TARGET=""
+
+# Trap errors and clean up
+trap cleanup_on_error EXIT
+
+cleanup_on_error() {
+  local exit_code=$?
+  if [ "$exit_code" -ne 0 ]; then
+    echo ""
+    echo "❌ Installation failed, cleaning up..."
+
+    # Clean up partial installation
+    if [ -n "$INSTALLING_VERSION" ] && [ -d "/usr/local/go-$INSTALLING_VERSION" ]; then
+      echo "  Removing partial installation..."
+      sudo rm -rf "/usr/local/go-$INSTALLING_VERSION"
+    fi
+
+    # Clean up downloaded files
+    [ -n "$INSTALLING_VERSION" ] && rm -f "/tmp/$INSTALLING_VERSION"*.tar.gz
+
+    # Restore previous symlink if it existed
+    if [ -n "$PREV_SYMLINK_TARGET" ]; then
+      echo "  Restoring previous symlink..."
+      sudo ln -sfn "$PREV_SYMLINK_TARGET" /usr/local/go
+    fi
+  fi
+}
+
 # Detect the system architecture
 # Returns: amd64, arm64, or armv6l
 # Exits with error 1 for unsupported architectures
@@ -74,6 +104,20 @@ fetch_latest_version() {
 normalize_version() {
   local version="$1"
   echo "$version" | sed 's/^go//'
+}
+
+# Validate version format
+validate_version() {
+  local version="$1"
+  version=$(normalize_version "$version")
+
+  if [[ ! "$version" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+    echo "❌ Invalid version format: $version"
+    echo "   Expected format: 1.21.0 or go1.21.0"
+    return 1
+  fi
+
+  echo "$version"
 }
 
 # Get currently active Go version and location
@@ -177,6 +221,14 @@ install_go_version() {
   local sudo_cmd=""
 
   [ "$(id -u)" -ne 0 ] && sudo_cmd="sudo"
+
+  # Save current symlink target for potential rollback
+  if [ -L "/usr/local/go" ]; then
+    PREV_SYMLINK_TARGET=$(readlink -f /usr/local/go)
+  fi
+
+  # Set installing version for error handler
+  INSTALLING_VERSION="$version"
 
   # Download
   local tar_path=$(download_go_version "$version") || return 1
@@ -636,6 +688,10 @@ parse_arguments() {
           show_help
           exit 1
         fi
+        # Validate version format
+        if ! validate_version "$2" > /dev/null; then
+          exit 1
+        fi
         TARGET_VERSION="$2"
         shift 2
         ;;
@@ -687,6 +743,24 @@ EOF
 
 # Main orchestration function
 main() {
+  # Early permission check
+  if [ "$(id -u)" -ne 0 ]; then
+    if ! command -v sudo &>/dev/null; then
+      echo "❌ This script requires root privileges"
+      echo "   Please run as root, or install sudo"
+      exit 1
+    fi
+
+    # Test sudo access
+    if ! sudo -n true 2>/dev/null; then
+      if [ "$SILENT_MODE" == "true" ]; then
+        echo "❌ This script requires sudo privileges"
+        echo "   Please run with sudo access"
+        exit 1
+      fi
+    fi
+  fi
+
   # Parse arguments first
   parse_arguments "$@"
 
