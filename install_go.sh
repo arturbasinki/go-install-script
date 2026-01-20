@@ -616,9 +616,128 @@ show_version_menu() {
   fi
 }
 
+# Parse command-line arguments
+parse_arguments() {
+  SILENT_MODE="${SILENT_MODE:-false}"
+  CLEANUP_ONLY=false
+  LIST_ONLY=false
+  TARGET_VERSION=""
+
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      -y|--yes)
+        SILENT_MODE=true
+        shift
+        ;;
+      --version)
+        TARGET_VERSION="$2"
+        shift 2
+        ;;
+      --cleanup)
+        CLEANUP_ONLY=true
+        shift
+        ;;
+      --list)
+        LIST_ONLY=true
+        shift
+        ;;
+      -h|--help)
+        show_help
+        exit 0
+        ;;
+      *)
+        echo "Unknown option: $1"
+        show_help
+        exit 1
+        ;;
+    esac
+  done
+}
+
+# Show help message
+show_help() {
+  cat << EOF
+Go Version Manager - Install and manage multiple Go versions
+
+USAGE:
+    install_go.sh [OPTIONS]
+
+OPTIONS:
+    -y, --yes              Silent mode - accept all defaults (no prompts)
+    --version VERSION      Install or switch to specific version (e.g., 1.20.5)
+    --cleanup              Run cleanup mode without installing
+    --list                 List installed and available versions
+    -h, --help             Show this help message
+
+EXAMPLES:
+    install_go.sh                  Interactive mode with smart prompts
+    install_go.sh -y               Install/upgrade to latest silently
+    install_go.sh --version 1.20.5 Install specific version
+    install_go.sh -y --cleanup     Remove old versions silently
+    install_go.sh --list           Show all installed versions
+
+EOF
+}
+
+# Main orchestration function
+main() {
+  # Parse arguments first
+  parse_arguments "$@"
+
+  # Handle list mode
+  if [ "$LIST_ONLY" == "true" ]; then
+    echo "Installed versions:"
+    list_installed_versions
+    local latest=$(fetch_latest_version)
+    echo "Latest available: $latest"
+    exit 0
+  fi
+
+  # Handle cleanup-only mode
+  if [ "$CLEANUP_ONLY" == "true" ]; then
+    cleanup_versions
+    exit $?
+  fi
+
+  # Handle version-specific mode
+  if [ -n "$TARGET_VERSION" ]; then
+    # Check if version already installed
+    if [ -d "/usr/local/go-$(normalize_version $TARGET_VERSION)" ]; then
+      switch_go_version "$TARGET_VERSION"
+      configure_environment
+    else
+      install_go_version "$TARGET_VERSION"
+      switch_go_version "$TARGET_VERSION"
+      configure_environment
+    fi
+
+    # Prompt for cleanup after version install
+    if [ "$SILENT_MODE" != "true" ]; then
+      echo ""
+      cleanup_versions
+    fi
+
+    exit $?
+  fi
+
+  # Migrate legacy install if present
+  migrate_legacy_install
+
+  # Default mode: smart prompts
+  prompt_smart
+
+  # Prompt for cleanup after install
+  if [ "$SILENT_MODE" != "true" ]; then
+    echo ""
+    cleanup_versions
+  fi
+}
+
 # Install or update Go to the latest version
 # Detects system architecture, downloads the latest Go version,
 # installs it to /usr/local/go, and configures environment variables.
+# NOTE: This function is kept for backward compatibility but is deprecated.
+#       Use main() with appropriate arguments instead.
 install_latest_go() {
   # Determine if sudo is needed
   SUDO_CMD=""
@@ -698,9 +817,6 @@ install_latest_go() {
 
 # Only run installation if script is executed directly (not sourced)
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-  # Migrate legacy installation before running install
-  migrate_legacy_install
-
-  # Call the function to execute the installation
-  install_latest_go
+  # Run main function with all arguments
+  main "$@"
 fi
