@@ -1,6 +1,8 @@
 #!/bin/bash
 
-# Function to detect the system architecture
+# Detect the system architecture
+# Returns: amd64, arm64, or armv6l
+# Exits with error 1 for unsupported architectures
 detect_architecture() {
   ARCH=$(uname -m)
   case $ARCH in
@@ -20,7 +22,10 @@ detect_architecture() {
   esac
 }
 
-# Detect appropriate shell profile file
+# Detect the appropriate shell profile file for the current user
+# Checks the user's SHELL environment variable and returns the most
+# appropriate profile file path for environment variable configuration.
+# Returns: Path to profile file (e.g., ~/.bashrc, ~/.zshrc, ~/.profile)
 detect_profile_file() {
   case "$SHELL" in
     */bash)
@@ -38,7 +43,7 @@ detect_profile_file() {
       elif [ -f "$HOME/.zprofile" ]; then
         echo "$HOME/.zprofile"
       else
-        echo "$HOME/.zshrc"
+        echo "$HOME/.profile"
       fi
       ;;
     */fish)
@@ -50,7 +55,9 @@ detect_profile_file() {
   esac
 }
 
-# Fetch latest Go version from go.dev
+# Fetch the latest Go version from go.dev
+# Scrapes the Go downloads page to find the latest version number.
+# Returns: Version string (e.g., "go1.23.1") or empty string on failure
 fetch_latest_version() {
   local latest_version=$(curl -s https://go.dev/dl/ | grep -oP 'go[0-9]+\.[0-9]+(\.[0-9]+)?' | head -n 1)
 
@@ -62,7 +69,9 @@ fetch_latest_version() {
   echo "$latest_version"
 }
 
-# Function to install or update Go
+# Install or update Go to the latest version
+# Detects system architecture, downloads the latest Go version,
+# installs it to /usr/local/go, and configures environment variables.
 install_latest_go() {
   # Determine if sudo is needed
   SUDO_CMD=""
@@ -82,11 +91,8 @@ install_latest_go() {
 
   # Fetch the latest Go version
   echo "Fetching the latest Go version..."
-  LATEST_GO_VERSION=$(curl -s $GO_DOWNLOAD_URL | grep -oP 'go[0-9]+\.[0-9]+(\.[0-9]+)?' | head -n 1)
-
-  # Check if the latest version was fetched successfully
+  LATEST_GO_VERSION=$(fetch_latest_version)
   if [ -z "$LATEST_GO_VERSION" ]; then
-    echo "Failed to fetch the latest Go version. Please check your internet connection."
     return 1
   fi
 
@@ -120,16 +126,11 @@ install_latest_go() {
   # Add Go to the PATH and set GOPATH/GOBIN
   # This part needs to be handled carefully for root vs user
   echo "Setting up Go environment..."
-  PROFILE_FILE=""
   if [ "$(id -u)" -ne 0 ]; then
-    # For regular user, update their own .profile or .bashrc
-    if [ -f "$HOME/.bashrc" ]; then
-      PROFILE_FILE="$HOME/.bashrc"
-    elif [ -f "$HOME/.profile" ]; then
-      PROFILE_FILE="$HOME/.profile"
-    else
-      # Fallback if neither exists, create .profile
-      PROFILE_FILE="$HOME/.profile"
+    # For regular user, detect and update their profile file
+    PROFILE_FILE=$(detect_profile_file)
+    # Create profile file if it doesn't exist
+    if [ ! -f "$PROFILE_FILE" ]; then
       touch "$PROFILE_FILE"
     fi
     
