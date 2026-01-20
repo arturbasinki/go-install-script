@@ -5,7 +5,7 @@ INSTALLING_VERSION=""
 PREV_SYMLINK_TARGET=""
 
 # Trap errors and clean up
-trap cleanup_on_error EXIT
+trap cleanup_on_error ERR
 
 cleanup_on_error() {
   local exit_code=$?
@@ -13,10 +13,13 @@ cleanup_on_error() {
     echo ""
     echo "❌ Installation failed, cleaning up..."
 
+    local sudo_cmd=""
+    [ "$(id -u)" -ne 0 ] && sudo_cmd="sudo"
+
     # Clean up partial installation
     if [ -n "$INSTALLING_VERSION" ] && [ -d "/usr/local/go-$INSTALLING_VERSION" ]; then
       echo "  Removing partial installation..."
-      sudo rm -rf "/usr/local/go-$INSTALLING_VERSION"
+      $sudo_cmd rm -rf "/usr/local/go-$INSTALLING_VERSION"
     fi
 
     # Clean up downloaded files
@@ -25,7 +28,9 @@ cleanup_on_error() {
     # Restore previous symlink if it existed
     if [ -n "$PREV_SYMLINK_TARGET" ]; then
       echo "  Restoring previous symlink..."
-      sudo ln -sfn "$PREV_SYMLINK_TARGET" /usr/local/go
+      # Remove directory if exists before creating symlink
+      [ -d "/usr/local/go" ] && $sudo_cmd rm -rf /usr/local/go
+      $sudo_cmd ln -sfn "$PREV_SYMLINK_TARGET" /usr/local/go
     fi
   fi
 }
@@ -289,7 +294,10 @@ switch_go_version() {
 
   # Update symlink
   echo "Switching to Go $version..."
-  $sudo_cmd ln -sfn "$versioned_dir" /usr/local/go
+  if ! $sudo_cmd ln -sfn "$versioned_dir" /usr/local/go; then
+    echo "❌ Failed to update symlink"
+    return 1
+  fi
 
   echo "✓ Switched to Go $version"
   /usr/local/go/bin/go version
@@ -688,11 +696,10 @@ parse_arguments() {
           show_help
           exit 1
         fi
-        # Validate version format
-        if ! validate_version "$2" > /dev/null; then
+        # Validate and normalize version
+        if ! TARGET_VERSION=$(validate_version "$2"); then
           exit 1
         fi
-        TARGET_VERSION="$2"
         shift 2
         ;;
       --cleanup)
