@@ -702,6 +702,7 @@ main() {
   # Handle cleanup-only mode
   if [ "$CLEANUP_ONLY" == "true" ]; then
     cleanup_versions || exit $?
+    exit 0  # Exit successfully after cleanup
   fi
 
   # Handle version-specific mode
