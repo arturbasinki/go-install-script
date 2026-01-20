@@ -474,6 +474,135 @@ cleanup_versions() {
   esac
 }
 
+# Smart interactive prompts based on current state
+prompt_smart() {
+  local current_info=$(get_active_version)
+  local current_version=$(echo "$current_info" | IFS='|' read -r v _ _; echo "$v")
+  local latest_version=$(fetch_latest_version)
+
+  echo ""
+  echo "=== Go Version Manager ==="
+  echo ""
+
+  # Scenario 1: No Go installed
+  if [ -z "$current_version" ]; then
+    echo "No Go installation detected."
+    echo "Latest available: $latest_version"
+    echo ""
+
+    if [ "$SILENT_MODE" == "true" ]; then
+      install_go_version "$latest_version"
+      switch_go_version "$latest_version"
+      configure_environment
+      return $?
+    fi
+
+    read -p "Install $latest_version? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+      install_go_version "$latest_version"
+      switch_go_version "$latest_version"
+      configure_environment
+      return $?
+    fi
+    return 0
+  fi
+
+  # Scenario 2: Current version outdated
+  if [ "$current_version" != "$latest_version" ]; then
+    echo "Current installation: $current_version"
+    local current_location=$(echo "$current_info" | IFS='|' read -r _ l _; echo "$l")
+    echo "Location: $current_location"
+    echo "Latest available: $latest_version"
+
+    local installed=($(list_installed_versions))
+    echo "Installed versions: ${installed[*]}"
+    echo ""
+
+    if [ "$SILENT_MODE" == "true" ]; then
+      install_go_version "$latest_version"
+      switch_go_version "$latest_version"
+      configure_environment
+      return $?
+    fi
+
+    echo "Options:"
+    echo "  y - Upgrade to $latest_version"
+    echo "  s - Switch to different installed version"
+    echo "  n - Cancel"
+    read -p "Choice [y/s/n] " -n 1 -r
+    echo
+
+    case $REPLY in
+      y)
+        install_go_version "$latest_version"
+        switch_go_version "$latest_version"
+        configure_environment
+        ;;
+      s)
+        show_version_menu
+        ;;
+      *)
+        echo "Cancelled"
+        ;;
+    esac
+    return 0
+  fi
+
+  # Scenario 3: Already on latest
+  echo "Current installation: $current_version (latest)"
+  echo "No upgrade available."
+  echo ""
+
+  if [ "$SILENT_MODE" == "true" ]; then
+    echo "Go is up to date."
+    return 0
+  fi
+
+  read -p "Install additional version? (y/n) " -n 1 -r
+  echo
+  if [[ $REPLY =~ ^[Yy]$ ]]; then
+    read -p "Enter version (e.g., 1.20.5): " version
+    if [ -n "$version" ]; then
+      install_go_version "$version"
+      switch_go_version "$version"
+      configure_environment
+    fi
+  fi
+}
+
+# Show menu of installed versions for switching
+show_version_menu() {
+  local versions=($(list_installed_versions))
+  local current_version=$(get_active_version | IFS='|' read -r v _ _; echo "$v")
+
+  if [ ${#versions[@]} -eq 0 ]; then
+    echo "No versions installed."
+    return 1
+  fi
+
+  echo "Installed versions:"
+  for i in "${!versions[@]}"; do
+    local v="${versions[$i]}"
+    if [ "$v" == "$current_version" ]; then
+      echo "  [$i] $v (current)"
+    else
+      echo "  [$i] $v"
+    fi
+  done
+
+  read -p "Select version to switch to: " selection
+
+  if [ -n "${versions[$selection]}" ]; then
+    local target_version="${versions[$selection]}"
+    switch_go_version "$target_version"
+    configure_environment
+  else
+    echo "Invalid selection"
+    return 1
+  fi
+}
+
 # Install or update Go to the latest version
 # Detects system architecture, downloads the latest Go version,
 # installs it to /usr/local/go, and configures environment variables.
