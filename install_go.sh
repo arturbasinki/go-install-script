@@ -86,7 +86,7 @@ get_active_version() {
 
   # Method 1: Check if 'go' command exists in PATH
   if command -v go &>/dev/null; then
-    version=$(go version | grep -oP 'go[0-9]+\.[0-9]+(\.[0-9]+)?')
+    version=$(normalize_version "$(go version | grep -oP 'go[0-9]+\.[0-9]+(\.[0-9]+)?')")
     location=$(which go)
     goroot=$(go env GOROOT 2>/dev/null || echo "")
     echo "$version|$location|$goroot"
@@ -96,7 +96,9 @@ get_active_version() {
   # Method 2: Check standard symlink location
   if [ -L "/usr/local/go" ]; then
     local target=$(readlink -f /usr/local/go)
-    version=$(echo "$target" | grep -oP 'go-[0-9]+\.[0-9]+(\.[0-9]+)?' | sed 's/^go-//')
+    if [ -x "$target/bin/go" ]; then
+      version=$(normalize_version "$("$target/bin/go" version 2>/dev/null | grep -oP 'go[0-9]+\.[0-9]+(\.[0-9]+)?')")
+    fi
     location="/usr/local/go/bin/go"
     goroot="$target"
     echo "$version|$location|$goroot"
@@ -105,7 +107,7 @@ get_active_version() {
 
   # Method 3: Check legacy directory install
   if [ -d "/usr/local/go/bin" ]; then
-    version=$(/usr/local/go/bin/go version 2>/dev/null | grep -oP 'go[0-9]+\.[0-9]+(\.[0-9]+)?')
+    version=$(normalize_version "$(/usr/local/go/bin/go version 2>/dev/null | grep -oP 'go[0-9]+\.[0-9]+(\.[0-9]+)?')")
     if [ -n "$version" ]; then
       location="/usr/local/go/bin/go"
       goroot="/usr/local/go"
@@ -115,6 +117,7 @@ get_active_version() {
   fi
 
   # No Go found
+  echo "Go installation not found" >&2
   echo "||"
   return 1
 }
