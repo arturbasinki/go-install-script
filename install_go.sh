@@ -20,6 +20,48 @@ detect_architecture() {
   esac
 }
 
+# Detect appropriate shell profile file
+detect_profile_file() {
+  case "$SHELL" in
+    */bash)
+      if [ -f "$HOME/.bashrc" ]; then
+        echo "$HOME/.bashrc"
+      elif [ -f "$HOME/.bash_profile" ]; then
+        echo "$HOME/.bash_profile"
+      else
+        echo "$HOME/.profile"
+      fi
+      ;;
+    */zsh)
+      if [ -f "$HOME/.zshrc" ]; then
+        echo "$HOME/.zshrc"
+      elif [ -f "$HOME/.zprofile" ]; then
+        echo "$HOME/.zprofile"
+      else
+        echo "$HOME/.zshrc"
+      fi
+      ;;
+    */fish)
+      echo "$HOME/.config/fish/config.fish"
+      ;;
+    *)
+      echo "$HOME/.profile"
+      ;;
+  esac
+}
+
+# Fetch latest Go version from go.dev
+fetch_latest_version() {
+  local latest_version=$(curl -s https://go.dev/dl/ | grep -oP 'go[0-9]+\.[0-9]+(\.[0-9]+)?' | head -n 1)
+
+  if [ -z "$latest_version" ]; then
+    echo "Failed to fetch latest Go version" >&2
+    return 1
+  fi
+
+  echo "$latest_version"
+}
+
 # Function to install or update Go
 install_latest_go() {
   # Determine if sudo is needed
