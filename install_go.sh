@@ -630,6 +630,12 @@ parse_arguments() {
         shift
         ;;
       --version)
+        if [ -z "$2" ] || [[ "$2" == -* ]]; then
+          echo "Error: --version requires a version number"
+          echo ""
+          show_help
+          exit 1
+        fi
         TARGET_VERSION="$2"
         shift 2
         ;;
@@ -695,29 +701,28 @@ main() {
 
   # Handle cleanup-only mode
   if [ "$CLEANUP_ONLY" == "true" ]; then
-    cleanup_versions
-    exit $?
+    cleanup_versions || exit $?
   fi
 
   # Handle version-specific mode
   if [ -n "$TARGET_VERSION" ]; then
     # Check if version already installed
     if [ -d "/usr/local/go-$(normalize_version $TARGET_VERSION)" ]; then
-      switch_go_version "$TARGET_VERSION"
-      configure_environment
+      switch_go_version "$TARGET_VERSION" || exit $?
+      configure_environment || exit $?
     else
-      install_go_version "$TARGET_VERSION"
-      switch_go_version "$TARGET_VERSION"
-      configure_environment
+      install_go_version "$TARGET_VERSION" || exit $?
+      switch_go_version "$TARGET_VERSION" || exit $?
+      configure_environment || exit $?
     fi
 
     # Prompt for cleanup after version install
     if [ "$SILENT_MODE" != "true" ]; then
       echo ""
-      cleanup_versions
+      cleanup_versions || true  # Don't fail on cleanup errors
     fi
 
-    exit $?
+    exit 0
   fi
 
   # Migrate legacy install if present
@@ -729,8 +734,11 @@ main() {
   # Prompt for cleanup after install
   if [ "$SILENT_MODE" != "true" ]; then
     echo ""
-    cleanup_versions
+    cleanup_versions || true  # Don't fail on cleanup errors
   fi
+
+  # Exit with success
+  exit 0
 }
 
 # Install or update Go to the latest version
