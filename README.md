@@ -30,9 +30,9 @@ install_go.sh [OPTIONS]
 
 **Options:**
 - `-y, --yes` - Silent mode (no prompts, accepts defaults)
-- `--version VERSION` - Install or switch to specific version (e.g., `1.20.5`)
-- `--cleanup` - Run cleanup mode to remove old versions
-- `--list` - List all installed Go versions
+- `-v, --version VERSION` - Install or switch to specific version (e.g., `1.20.5`)
+- `--cleanup` - Run cleanup mode to remove old versions (long-only for safety)
+- `-l, --list` - List all installed Go versions (marks active version)
 - `-h, --help` - Show help message
 
 ### Option 1: Run Directly from GitHub
@@ -58,7 +58,8 @@ curl -sSL https://raw.githubusercontent.com/arturbasinki/go-install-script/refs/
    ```bash
    ./install_go.sh          # Interactive mode
    ./install_go.sh -y        # Silent mode (latest version)
-   ./install_go.sh --version 1.20.5  # Specific version
+   ./install_go.sh -v 1.20.5 # Specific version
+   ./install_go.sh -l        # List installed versions
    ```
 
 ### Option 3: Add an Alias
@@ -147,7 +148,7 @@ Switching to Go 1.23.1...
 ### Install Specific Version
 
 ```bash
-./install_go.sh --version 1.20.5
+./install_go.sh -v 1.20.5
 ```
 
 Output:
@@ -164,15 +165,15 @@ Switching to Go 1.20.5...
 ### List Installed Versions
 
 ```bash
-./install_go.sh --list
+./install_go.sh -l
 ```
 
 Output:
 ```
 Installed versions:
-1.23.1
-1.22.5
-1.21.0
+  * 1.23.1 (active)
+    1.22.5
+    1.20.5
 Latest available: go1.23.1
 ```
 
