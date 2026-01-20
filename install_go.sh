@@ -278,6 +278,13 @@ migrate_legacy_install() {
       echo "Creating backup..."
       $sudo_cmd cp -r /usr/local/go /usr/local/go.backup
 
+      # Check for existing versioned directory
+      if [ -d "/usr/local/go-$version" ]; then
+        echo "⚠️  Versioned directory /usr/local/go-$version already exists"
+        echo "   Removing old versioned directory before migration..."
+        $sudo_cmd rm -rf "/usr/local/go-$version"
+      fi
+
       # Rename to versioned directory
       echo "Migrating to /usr/local/go-$version..."
       $sudo_cmd mv /usr/local/go "/usr/local/go-$version"
@@ -292,8 +299,19 @@ migrate_legacy_install() {
         return 0
       else
         echo "❌ Migration failed, restoring backup"
-        $sudo_cmd rm -rf /usr/local/go "/usr/local/go-$version"
-        $sudo_cmd mv /usr/local/go.backup /usr/local/go
+
+        # Atomic rollback with error checking
+        if ! $sudo_cmd rm -rf /usr/local/go "/usr/local/go-$version"; then
+          echo "❌ Critical: Failed to clean up failed migration"
+          return 1
+        fi
+
+        if ! $sudo_cmd mv /usr/local/go.backup /usr/local/go; then
+          echo "❌ Critical: Failed to restore backup. Your Go installation may be broken."
+          echo "   Manual intervention required - restore from /usr/local/go.backup manually"
+          return 1
+        fi
+
         return 1
       fi
     fi
@@ -446,6 +464,9 @@ install_latest_go() {
   # The go version command was successful if we reached this point
   echo "Go $LATEST_GO_VERSION has been successfully installed/updated!"
 }
+
+# Migrate legacy installation before running install
+migrate_legacy_install
 
 # Call the function to execute the installation
 install_latest_go
